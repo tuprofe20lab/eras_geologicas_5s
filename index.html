@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GEO-LAB — EVALUACIÓN DE ERAS GEOLÓGICAS</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Orbitron e Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Tone.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        :root {
+            --neon-amber: #FFAE00;
+            --neon-cyan: #00F0FF;
+            --neon-emerald: #00FF88;
+            --dark-bg: #07090F;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            perspective: 1000px;
+        }
+
+        h1, h2, h3, .font-sci { font-family: 'Orbitron', sans-serif; }
+
+        .glass-panel {
+            background: rgba(13, 18, 30, 0.78);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 174, 0, 0.28);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(255, 174, 0, 0.06);
+        }
+
+        .option-card {
+            background: rgba(30, 41, 59, 0.62);
+            border: 1.5px solid rgba(255, 255, 255, 0.14);
+            transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.1s;
+            cursor: pointer;
+            transform-style: preserve-3d;
+        }
+        .option-content { transform: translateZ(16px); }
+        .option-card:hover {
+            border-color: var(--neon-amber);
+            box-shadow: 0 10px 28px rgba(255, 174, 0, 0.28), inset 0 0 14px rgba(255, 174, 0, 0.16);
+            background: rgba(15, 23, 42, 0.92);
+            z-index: 10;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(255, 174, 0, 0.45); }
+            50% { box-shadow: 0 0 32px rgba(255, 174, 0, 0.85); }
+        }
+        .btn-neon {
+            background: transparent;
+            border: 2px solid var(--neon-amber);
+            color: var(--neon-amber);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: pulse-glow 2s infinite;
+        }
+        .btn-neon:hover {
+            background: var(--neon-amber);
+            color: var(--dark-bg);
+            box-shadow: 0 0 36px var(--neon-amber);
+            transform: scale(1.04) translateY(-2px);
+        }
+
+        #bg-canvas {
+            position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -5; pointer-events: none;
+            background: radial-gradient(circle at center, #18122b 0%, #07090F 100%);
+        }
+
+        /* GEO-Bot */
+        #bot-container {
+            position: fixed; bottom: 14px; right: 18px; z-index: 100;
+            display: flex; align-items: flex-end;
+        }
+        .robot-hover { animation: float-slow 3s ease-in-out infinite; }
+        @keyframes float-slow { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        #speech-bubble {
+            background: rgba(11, 14, 24, 0.96);
+            border: 2px solid var(--neon-amber);
+            border-radius: 18px 18px 0 18px;
+            padding: 10px 16px; margin-right: 10px; margin-bottom: 22px;
+            max-width: 270px; box-shadow: 0 0 18px rgba(255, 174, 0, 0.35);
+            opacity: 0; transform: scale(0.85) translateY(12px);
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-origin: bottom right;
+        }
+        #speech-bubble.active { opacity: 1; transform: scale(1) translateY(0); }
+
+        .robot-eye { animation: blink 4s infinite; transform-origin: center; }
+        @keyframes blink { 0%, 96%, 98% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+
+        .screen { display: none; opacity: 0; transition: opacity 0.4s ease-out; }
+        .screen.active { display: flex; opacity: 1; animation: slideUpFade 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(35px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .animate-shake { animation: shake 0.38s ease; }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col relative text-gray-100">
+
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- ASISTENTE GEO-BOT -->
+    <div id="bot-container">
+        <div id="speech-bubble" class="font-sci text-amber-100 text-xs tracking-wide">
+            ¡Preparen sus fichas ópticas!
+        </div>
+        <div class="robot-hover cursor-pointer" onclick="geoBot.poke()">
+            <svg width="78" height="94" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="50" y1="30" x2="50" y2="10" stroke="#FFAE00" stroke-width="4"/>
+                <circle cx="50" cy="8" r="6" fill="#FFAE00" class="animate-pulse"/>
+                <rect x="20" y="30" width="60" height="50" rx="15" fill="#1e293b" stroke="#00FF88" stroke-width="3"/>
+                <rect x="28" y="40" width="44" height="25" rx="5" fill="#07090F" stroke="#FFAE00" stroke-width="2"/>
+                <rect x="35" y="48" width="10" height="8" rx="2" fill="#00FF88" class="robot-eye"/>
+                <rect x="55" y="48" width="10" height="8" rx="2" fill="#00FF88" class="robot-eye"/>
+                <path d="M 30 80 L 70 80 L 65 100 L 35 100 Z" fill="#1e293b" stroke="#00FF88" stroke-width="3"/>
+                <circle cx="50" cy="105" r="10" fill="#07090F" stroke="#FFAE00" stroke-width="3"/>
+                <circle cx="50" cy="105" r="3" fill="#FFAE00"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- PANTALLA INICIAL -->
+    <div id="screen-intro" class="screen active flex-col items-center justify-center w-full h-full p-6 z-10 text-center">
+        <div class="glass-panel p-10 md:p-12 rounded-3xl max-w-4xl w-full flex flex-col items-center relative overflow-hidden">
+            <div class="relative w-28 h-28 mb-5">
+                <i class="fas fa-globe-americas text-6xl text-emerald-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse drop-shadow-[0_0_18px_#00FF88]"></i>
+                <i class="fas fa-circle-notch text-7xl text-amber-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-35 animate-[spin_8s_linear_infinite]"></i>
+            </div>
+
+            <h2 class="text-lg md:text-2xl text-amber-300 font-sci tracking-widest mb-2 font-bold uppercase">
+                Ciencia y Tecnología — Prof. Danny Torres
+            </h2>
+            <h1 class="text-4xl md:text-6xl font-bold font-sci bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-emerald-400 to-cyan-400 mb-5 drop-shadow-lg">
+                ERAS GEOLÓGICAS DE LA TIERRA
+            </h1>
+            <p class="text-lg md:text-xl text-gray-300 mb-8 max-w-2xl leading-relaxed">
+                Evaluación interactiva basada en el documental de historia geológica.<br>
+                <strong>10 preguntas</strong> · <strong>2 minutos</strong> por pregunta · <span class="text-amber-300 font-semibold">Modo Ficha Óptica</span>.<br>
+                Las claves oficiales estarán bloqueadas al final con contraseña docente.
+            </p>
+
+            <button onclick="startQuiz()" onmouseenter="SoundEngine.playHover()" class="btn-neon font-sci font-bold text-xl md:text-2xl py-4 px-12 rounded-full flex items-center gap-4 group">
+                <span>INICIAR EVALUACIÓN</span>
+                <i class="fas fa-play group-hover:translate-x-1 transition-transform"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- PANTALLA DEL CUESTIONARIO -->
+    <div id="screen-quiz" class="screen flex-col w-full h-full z-10 p-3 md:p-6">
+        <!-- Header -->
+        <header class="glass-panel rounded-2xl p-3 flex flex-wrap justify-between items-center mb-2.5 gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-amber-900/40 flex items-center justify-center border border-amber-400 shadow-[0_0_14px_rgba(255,174,0,0.45)]">
+                    <i class="fas fa-mountain text-lg text-amber-400"></i>
+                </div>
+                <div class="flex flex-col">
+                    <span class="font-sci text-xl md:text-2xl font-bold tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-emerald-400 leading-none">GEO-LAB</span>
+                    <span class="text-[11px] font-sci text-cyan-300 tracking-wider mt-0.5">MODO FICHA ÓPTICA</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2.5 md:gap-4 font-sci flex-wrap">
+                <div class="flex flex-col items-center bg-slate-800/80 px-3.5 py-1 rounded-xl border border-slate-600">
+                    <span class="text-[9px] text-amber-300 uppercase tracking-widest">Pregunta</span>
+                    <span id="stat-question" class="text-lg text-white font-bold">1 / 10</span>
+                </div>
+
+                <div id="timer-box" class="flex items-center gap-2 bg-slate-900/90 px-4 py-1.5 rounded-xl border-2 border-amber-400 shadow-[0_0_14px_rgba(255,174,0,0.28)]">
+                    <i class="fas fa-stopwatch text-amber-400 text-lg"></i>
+                    <span id="timer-display" class="text-xl md:text-2xl font-black text-amber-300 tracking-widest">02:00</span>
+                </div>
+
+                <button id="btn-prev" onclick="prevQuestion()" onmouseenter="SoundEngine.playHover()" class="bg-slate-800 hover:bg-slate-700 disabled:opacity-40 border border-slate-500 text-white px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition flex items-center gap-1.5">
+                    <i class="fas fa-chevron-left"></i> <span>Anterior</span>
+                </button>
+
+                <button id="btn-pause" onclick="togglePause()" onmouseenter="SoundEngine.playHover()" class="bg-slate-800 hover:bg-slate-700 border border-slate-500 text-white px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition flex items-center gap-1.5">
+                    <i class="fas fa-pause"></i> <span>Pausar</span>
+                </button>
+
+                <button id="btn-next" onclick="nextQuestion()" onmouseenter="SoundEngine.playHover()" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 px-4 py-2 rounded-xl text-xs md:text-sm font-black shadow-[0_0_14px_rgba(255,174,0,0.4)] transition flex items-center gap-1.5">
+                    <span id="btn-next-txt">Siguiente</span> <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Barras de progreso -->
+        <div class="w-full bg-slate-800/80 rounded-full h-1.5 mb-2 border border-slate-700 overflow-hidden">
+            <div id="progress-bar" class="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-cyan-400 transition-all duration-500" style="width: 10%"></div>
+        </div>
+        <div class="w-full bg-slate-900 rounded-full h-1.5 mb-4 overflow-hidden">
+            <div id="timer-bar" class="h-full bg-amber-400 w-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(255,174,0,0.8)]"></div>
+        </div>
+
+        <!-- Contenedor Principal -->
+        <main class="flex-1 min-h-0 flex flex-col max-w-6xl mx-auto w-full gap-4 relative z-10 pb-16">
+            <!-- Pregunta -->
+            <div class="glass-panel p-6 md:p-7 rounded-2xl border-l-4 border-l-amber-400 relative shrink-0">
+                <div class="absolute -top-3.5 left-6 bg-slate-900 border border-amber-400 text-amber-300 text-xs font-bold px-4 py-1 rounded-full uppercase tracking-widest font-sci flex items-center gap-2">
+                    <i class="fas fa-layer-group"></i> <span id="topic-text">Era Geológica</span>
+                </div>
+                <h2 id="question-text" class="text-xl md:text-2xl font-bold leading-snug mt-2 text-white"></h2>
+            </div>
+
+            <!-- 4 Alternativas -->
+            <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 content-center"></div>
+        </main>
+    </div>
+
+    <!-- PANTALLA FINAL: ACCESO PROTEGIDO CON CLAVE 210317 -->
+    <div id="screen-results" class="screen flex-col items-center justify-center w-full h-full p-4 md:p-6 z-10">
+        <div class="glass-panel p-6 md:p-9 rounded-3xl max-w-5xl w-full flex flex-col items-center text-center overflow-y-auto no-scrollbar max-h-full">
+
+            <!-- Vista Bloqueada -->
+            <div id="lock-view" class="flex flex-col items-center py-6 w-full max-w-md">
+                <div class="w-24 h-24 rounded-full border-4 border-dashed border-amber-400 flex items-center justify-center mb-5 bg-amber-400/10">
+                    <i class="fas fa-lock text-4xl text-amber-400"></i>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-bold font-sci text-white mb-2">EVALUACIÓN FINALIZADA</h1>
+                <p class="text-base md:text-lg text-gray-300 mb-6">
+                    Las claves oficiales están protegidas.<br>Ingrese la <span class="text-amber-300 font-bold">contraseña docente</span> para revelar las respuestas.
+                </p>
+
+                <div id="password-box" class="w-full flex flex-col gap-3">
+                    <input
+                        type="password"
+                        id="key-password"
+                        maxlength="12"
+                        placeholder="Ingrese contraseña..."
+                        autocomplete="off"
+                        class="w-full text-center font-sci text-2xl tracking-[0.35em] bg-slate-900/90 border-2 border-amber-500/60 focus:border-emerald-400 focus:outline-none rounded-2xl py-3.5 px-4 text-amber-300 placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-base"
+                    />
+                    <p id="pass-error" class="text-rose-400 text-sm font-bold hidden">
+                        <i class="fas fa-exclamation-triangle mr-1"></i> Contraseña incorrecta. Acceso restringido al docente.
+                    </p>
+                    <button onclick="checkPassword()" onmouseenter="SoundEngine.playHover()" class="btn-neon font-sci font-bold text-lg py-3.5 px-8 rounded-2xl flex items-center justify-center gap-3 mt-1">
+                        <i class="fas fa-unlock-alt"></i> DESBLOQUEAR CLAVES
+                    </button>
+                </div>
+            </div>
+
+            <!-- Vista de Claves Reveladas -->
+            <div id="keys-view" class="hidden w-full flex-col items-center">
+                <h1 class="text-2xl md:text-4xl font-bold font-sci bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-emerald-400 mb-1">
+                    CLAVES OFICIALES — ERAS GEOLÓGICAS
+                </h1>
+                <p class="text-xs text-gray-400 font-sci uppercase tracking-widest mb-5">10 Preguntas basadas en el documental</p>
+
+                <div id="keys-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full text-left mb-6"></div>
+
+                <button onclick="location.reload()" onmouseenter="SoundEngine.playHover()" class="btn-neon font-sci font-bold text-base py-3 px-10 rounded-full flex items-center gap-3">
+                    <i class="fas fa-redo"></i> REINICIAR EVALUACIÓN
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const TEACHER_KEY = "210317";
+    const SECONDS_PER_QUESTION = 120; // 2 minutos por pregunta
+
+    // --- Fondo Dinámico ---
+    (function initBg() {
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let w, h, t = 0;
+        function resize() { w = canvas.width = innerWidth; h = canvas.height = innerHeight; }
+        addEventListener('resize', resize); resize();
+        const pts = Array.from({length: 30}, () => ({
+            x: Math.random() * w, y: Math.random() * h,
+            s: 0.14 + Math.random() * 0.32, r: 1.5 + Math.random() * 3,
+            o: 0.15 + Math.random() * 0.45, amb: Math.random() > 0.5
+        }));
+        function wave(y0, a, f, spd, col, lw) {
+            ctx.beginPath(); ctx.lineWidth = lw; ctx.strokeStyle = col;
+            for (let x = 0; x < w; x += 12) {
+                const y = y0 + Math.sin(x * f + t * spd) * a;
+                x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+        function loop() {
+            ctx.clearRect(0, 0, w, h);
+            wave(h * 0.32, 34, 0.004, 0.018, 'rgba(255,174,0,0.09)', 2);
+            wave(h * 0.7, 44, 0.003, -0.014, 'rgba(0,255,136,0.08)', 2.5);
+            pts.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = p.amb ? `rgba(255,174,0,${p.o})` : `rgba(0,255,136,${p.o})`;
+                ctx.fill();
+                p.y -= p.s;
+                if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+            });
+            t++; requestAnimationFrame(loop);
+        }
+        loop();
+    })();
+
+    // --- Motor de Audio ---
+    const SoundEngine = {
+        synth: null, hoverSynth: null, clickSynth: null, tickSynth: null,
+        async init() {
+            if (this.synth) return;
+            await Tone.start();
+            this.synth = new Tone.PolySynth(Tone.Synth).toDestination();
+            this.synth.volume.value = -12;
+            this.hoverSynth = new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.08, sustain: 0, release: 0.08 } }).toDestination();
+            this.hoverSynth.volume.value = -22;
+            this.clickSynth = new Tone.MembraneSynth().toDestination();
+            this.clickSynth.volume.value = -16;
+            this.tickSynth = new Tone.MetalSynth({ frequency: 220, envelope: { attack: 0.001, decay: 0.08, release: 0.01 } }).toDestination();
+            this.tickSynth.volume.value = -24;
+        },
+        playHover() { if (this.hoverSynth && Tone.context.state === 'running') this.hoverSynth.triggerAttackRelease("E6", "32n"); },
+        playClick() { if (this.clickSynth && Tone.context.state === 'running') this.clickSynth.triggerAttackRelease("G2", "16n"); },
+        playTick()  { if (this.tickSynth && Tone.context.state === 'running') this.tickSynth.triggerAttackRelease("32n"); },
+        playError() {
+            if (!this.synth) return;
+            const now = Tone.now();
+            this.synth.triggerAttackRelease("Eb4", "16n", now);
+            this.synth.triggerAttackRelease("A3", "8n", now + 0.12);
+        },
+        playFanfare() {
+            if (!this.synth) return;
+            const now = Tone.now();
+            ["C5", "E5", "G5", "C6"].forEach((n, i) => this.synth.triggerAttackRelease(n, "8n", now + i * 0.09));
+        }
+    };
+
+    const geoBot = {
+        el: document.getElementById('speech-bubble'),
+        say(txt, ms = 4200) {
+            this.el.innerHTML = txt;
+            this.el.classList.add('active');
+            if (this.t) clearTimeout(this.t);
+            if (ms > 0) this.t = setTimeout(() => this.el.classList.remove('active'), ms);
+        },
+        poke() {
+            const tips = [
+                "Lee con mucha atención las cuatro alternativas antes de marcar tu ficha.",
+                "Recuerda el orden cronológico de los eventos vistos en el documental.",
+                "¡Cada detalle del video es clave para diferenciar las opciones!"
+            ];
+            this.say(tips[Math.floor(Math.random() * tips.length)], 4000);
+            SoundEngine.playHover();
+        }
+    };
+
+    // --- 10 PREGUNTAS EXTRAÍDAS DEL VIDEO (CON DISTRACTORES MUY SIMILARES) ---
+    const QUIZ_DATA = [
+        {
+            topic: "Origen de la Tierra y del Agua",
+            question: "Según el documental, ¿cómo se formaron las primeras acumulaciones de agua líquida sobre la superficie enfriada del planeta?",
+            options: [
+                "Por el bombardeo durante más de 20 millones de años de millones de meteoritos que contenían cristales con diminutas gotitas de agua.",
+                "Por el bombardeo durante más de 2 millones de años de cometas helados que enfriaron el núcleo fundido del planeta.",
+                "Por la condensación exclusiva de gases volcánicos y vapor de agua tras la primera glaciación polar.",
+                "Por la filtración de oxígeno líquido liberado por las primeras bacterias microscópicas a través de las grietas."
+            ],
+            correctIndex: 0, // A
+            timeRef: "03:14 - 03:54",
+            note: "Millones de meteoritos con cristales de agua bombardearon la Tierra por más de 20 millones de años."
+        },
+        {
+            topic: "Primeras Formas de Vida",
+            question: "¿Qué papel decisivo cumplieron las colonias bacterianas llamadas estromatolitos en la evolución temprana de la Tierra?",
+            options: [
+                "Consumieron todo el nitrógeno del océano para neutralizar la lluvia ácida de los volcanes submarinos.",
+                "Produjeron oxígeno bajo el agua, llenando primero los océanos y formando luego la atmósfera terrestre.",
+                "Transformaron directamente los minerales de los meteoritos en los primeros esqueletos óseos marinos.",
+                "Crearon las primeras capas de materia vegetal que luego se convirtieron en vetas de carbón."
+            ],
+            correctIndex: 1, // B
+            timeRef: "05:08 - 05:45",
+            note: "Los estromatolitos llenaron poco a poco el mar de oxígeno y sobre las aguas formaron la atmósfera."
+        },
+        {
+            topic: "Explosión Cámbrica",
+            question: "Durante la Explosión Cámbrica, ¿qué cambio ambiental permitió que las criaturas marinas crecieran y desarrollaran esqueletos óseos?",
+            options: [
+                "El descenso abrupto del nivel del mar que concentró los nutrientes en pequeños lagos costeros.",
+                "La fragmentación inicial del supercontinente Pangea que abrió corrientes cálidas en el océano.",
+                "El incremento sostenido de los niveles de oxígeno en los océanos primitivos.",
+                "La desaparición total de la radiación solar tras la formación de densas nubes de ceniza."
+            ],
+            correctIndex: 2, // C
+            timeRef: "06:15 - 06:28",
+            note: "Los crecientes niveles de oxígeno permitieron el desarrollo de organismos más grandes y esqueletos óseos."
+        },
+        {
+            topic: "Extinción del Ordovícico",
+            question: "Cuando el impacto de los rayos gamma desencadenó la extinción del periodo Ordovícico, ¿en qué nivel comenzó el colapso de la cadena alimentaria?",
+            options: [
+                "En los grandes depredadores como el Orthoceras de 6 metros que cazaban en aguas profundas.",
+                "En los arrecifes de coral profundos que quedaron sepultados por lava submarina.",
+                "En los peces primitivos que intentaban colonizar los primeros ríos de agua dulce.",
+                "En el plancton microscópico cercano a la superficie del océano, destruyendo la base de la cadena."
+            ],
+            correctIndex: 3, // D
+            timeRef: "10:23 - 11:22",
+            note: "La extinción inició a nivel microscópico afectando al plancton superficial y causando un efecto dominó."
+        },
+        {
+            topic: "Conquista de Tierra Firme",
+            question: "Hace unos 360 millones de años, ¿qué grupo de criaturas evolucionó durante más de 15 millones de años fortaleciendo sus aletas como extremidades hasta hacer del suelo su hogar?",
+            options: [
+                "Los tetrápodos, de los cuales evolucionaron posteriormente dinosaurios, aves, mamíferos y humanos.",
+                "Los placodermos, peces acorazados gigantes que abandonaron los mares tras la extinción del Pérmico.",
+                "Los trilobites, que adaptaron sus caparazones para desplazarse por los bosques de coníferas.",
+                "Los artrópodos gigantes como la libélula Meganeura, primeros vertebrados en pisar el continente."
+            ],
+            correctIndex: 0, // A
+            timeRef: "13:10 - 13:35",
+            note: "Los tetrápodos pasaron cada vez más tiempo fuera del agua y son ancestros de los vertebrados cuadrúpedos."
+        },
+        {
+            topic: "Avance Evolutivo de los Reptiles",
+            question: "¿Por qué la aparición del huevo en los primeros reptiles representó uno de los avances evolutivos más importantes del documental?",
+            options: [
+                "Porque permitía que las crías nacieran directamente en ríos de agua dulce lejos de los depredadores marinos.",
+                "Porque contenía toda el agua y nutrientes necesarios como una laguna autónoma, permitiendo dejar el agua.",
+                "Porque su cáscara mineralizada los protegía de las erupciones de basalto fundido del Pérmico.",
+                "Porque facilitó que sus extremidades delanteras evolucionaran rápidamente en alas para cazar."
+            ],
+            correctIndex: 1, // B
+            timeRef: "17:12 - 17:45",
+            note: "El huevo funcionaba como una laguna autónoma, liberando a los animales de depender del agua para reproducirse."
+        },
+        {
+            topic: "Extinción del Pérmico",
+            question: "Hace más de 250 millones de años, al final del periodo Pérmico, ocurrió la peor extinción en masa de la historia. ¿Qué la provocó y qué porcentaje de la vida desapareció?",
+            options: [
+                "Una glaciación global de 2,5 km de espesor que eliminó al 85% de las especies continentales.",
+                "Un estallido de rayos gamma de larga duración que destruyó al 90% de los organismos marinos.",
+                "Erupciones masivas de basalto fundido y grietas de más de 30 km que eliminaron al 95% de toda la vida.",
+                "El impacto de un asteroide de 10 km en el océano Tetis que acabó con el 95% de los reptiles."
+            ],
+            correctIndex: 2, // C
+            timeRef: "19:36 - 22:50",
+            note: "El basalto fundido y enormes grietas volcánicas provocaron la desaparición del 95% de la vida."
+        },
+        {
+            topic: "Ruptura de Pangea",
+            question: "Hace unos 190 millones de años, el movimiento de las placas tectónicas y la lava interior fracturaron el supercontinente Pangea. ¿Qué gran formación geográfica surgió al separarse América del Norte y África?",
+            options: [
+                "La cordillera de África oriental que bloqueó los vientos húmedos del océano Índico.",
+                "El estrecho terrestre entre Siberia y Alaska que permitió las migraciones continentales.",
+                "Las grandes depresiones que luego formaron los Grandes Lagos de América del Norte.",
+                "Un nuevo gran océano entre ambos continentes: el océano Atlántico."
+            ],
+            correctIndex: 3, // D
+            timeRef: "24:45 - 26:04",
+            note: "Al alejarse América del Norte de África occidental, el espacio entre ambos creó el océano Atlántico."
+        },
+        {
+            topic: "Fin de los Dinosaurios",
+            question: "Tras el impacto del asteroide de 10 km cerca de la península de Yucatán, ¿qué combinación de factores permitió a los mamíferos sobrevivir y heredar la Tierra?",
+            options: [
+                "Vivir bajo tierra (protegidos del fuego y del calor) y tener una dieta variada que les permitía comer de todo.",
+                "Poseer una gruesa capa de grasa y pelaje espeso que los aisló tanto del fuego como del enfriamiento posterior.",
+                "Refugiarse en el recién formado océano Atlántico desarrollando aletas al igual que los ictiosaurios.",
+                "Migrar rápidamente hacia las montañas de Asia donde el impacto del asteroide no generó ondas expansivas."
+            ],
+            correctIndex: 0, // A
+            timeRef: "28:36 - 32:01",
+            note: "Al vivir bajo tierra evitaron el calor extremo y su dieta no selectiva les permitió prosperar."
+        },
+        {
+            topic: "Evolución Humana y Bipedismo",
+            question: "Según el documental, ¿qué cambio geológico en África oriental impulsó indirectamente a nuestros ancestros a dejar los árboles y caminar sobre dos pies?",
+            options: [
+                "El descenso del nivel del mar que conectó África con América mediante un puente de tierra firme.",
+                "El levantamiento de una cordillera que bloqueó la humedad del océano Índico, convirtiendo el bosque en una árida sabana.",
+                "El retroceso de los glaciares africanos que formó grandes lagos obligándolos a cruzar aguas poco profundas.",
+                "La colisión de las placas de América y Europa que elevó bruscamente las temperaturas en todo el hemisferio norte."
+            ],
+            correctIndex: 1, // B
+            timeRef: "39:05 - 40:08",
+            note: "Las montañas actuaron como un muro contra la humedad del Índico, transformando el bosque en sabana."
+        }
+    ];
+
+    let currentQ = 0;
+    let timeRemaining = SECONDS_PER_QUESTION;
+    let timerInterval = null;
+    let isPaused = false;
+
+    function formatTime(sec) {
+        return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    }
+
+    function applyTilt(el) {
+        el.addEventListener('mousemove', e => {
+            const r = el.getBoundingClientRect();
+            const rx = ((e.clientY - r.top - r.height / 2) / (r.height / 2)) * -6;
+            const ry = ((e.clientX - r.left - r.width / 2) / (r.width / 2)) * 6;
+            el.style.transform = `perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale3d(1.015,1.015,1.015)`;
+        });
+        el.addEventListener('mouseleave', () => {
+            el.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)`;
+        });
+    }
+
+    async function startQuiz() {
+        await SoundEngine.init();
+        SoundEngine.playClick();
+        document.getElementById('screen-intro').classList.remove('active');
+        setTimeout(() => {
+            document.getElementById('screen-intro').style.display = 'none';
+            const qs = document.getElementById('screen-quiz');
+            qs.style.display = 'flex';
+            void qs.offsetWidth;
+            qs.classList.add('active');
+            loadQuestion();
+        }, 380);
+    }
+
+    function loadQuestion() {
+        const q = QUIZ_DATA[currentQ];
+        document.getElementById('stat-question').textContent = `${currentQ + 1} / ${QUIZ_DATA.length}`;
+        document.getElementById('progress-bar').style.width = `${((currentQ + 1) / QUIZ_DATA.length) * 100}%`;
+        document.getElementById('topic-text').textContent = q.topic;
+        document.getElementById('question-text').textContent = q.question;
+
+        document.getElementById('btn-prev').disabled = currentQ === 0;
+        document.getElementById('btn-next-txt').textContent = currentQ === QUIZ_DATA.length - 1 ? 'Finalizar' : 'Siguiente';
+
+        const container = document.getElementById('options-container');
+        container.innerHTML = '';
+        const letters = ['A', 'B', 'C', 'D'];
+
+        q.options.forEach((opt, idx) => {
+            const card = document.createElement('div');
+            card.className = 'option-card p-5 rounded-2xl flex items-center gap-4 opacity-0 translate-y-4';
+            card.style.transition = `background 0.25s, border-color 0.25s, box-shadow 0.25s, opacity 0.35s ease ${idx * 0.08}s, transform 0.35s ease ${idx * 0.08}s`;
+            card.innerHTML = `
+                <div class="option-content flex items-center gap-4 w-full pointer-events-none">
+                    <div class="w-12 h-12 rounded-full bg-slate-800 border-2 border-amber-400/70 flex items-center justify-center font-sci font-black text-xl text-amber-300 shrink-0">
+                        ${letters[idx]}
+                    </div>
+                    <p class="text-base md:text-lg font-semibold text-gray-100 leading-snug">${opt}</p>
+                </div>`;
+            applyTilt(card);
+            card.onmouseenter = () => SoundEngine.playHover();
+            container.appendChild(card);
+
+            setTimeout(() => {
+                card.classList.remove('opacity-0', 'translate-y-4');
+                setTimeout(() => { card.style.transition = 'background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.1s'; }, 300);
+            }, 35);
+        });
+
+        geoBot.say(`Pregunta ${currentQ + 1} de 10: analicen bien las 4 opciones.`, 3500);
+        startTimer();
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        isPaused = false;
+        timeRemaining = SECONDS_PER_QUESTION;
+        updatePauseBtn();
+        updateTimerUI();
+
+        timerInterval = setInterval(() => {
+            if (isPaused) return;
+            timeRemaining--;
+            updateTimerUI();
+            if (timeRemaining <= 10 && timeRemaining > 0) SoundEngine.playTick();
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                SoundEngine.playFanfare();
+                geoBot.say("¡Tiempo terminado! Avanzando a la siguiente pregunta...", 2500);
+                setTimeout(() => nextQuestion(), 1500);
+            }
+        }, 1000);
+    }
+
+    function updateTimerUI() {
+        const display = document.getElementById('timer-display');
+        const bar = document.getElementById('timer-bar');
+        const box = document.getElementById('timer-box');
+        display.textContent = formatTime(timeRemaining);
+        bar.style.width = `${(timeRemaining / SECONDS_PER_QUESTION) * 100}%`;
+
+        if (timeRemaining <= 25) {
+            bar.className = 'h-full bg-red-500 w-full transition-all duration-1000 ease-linear shadow-[0_0_12px_rgba(239,68,68,0.9)]';
+            box.classList.replace('border-amber-400', 'border-red-500');
+            display.classList.replace('text-amber-300', 'text-red-400');
+        } else {
+            bar.className = 'h-full bg-amber-400 w-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(255,174,0,0.8)]';
+            box.classList.replace('border-red-500', 'border-amber-400');
+            display.classList.replace('text-red-400', 'text-amber-300');
+        }
+    }
+
+    function togglePause() {
+        SoundEngine.playClick();
+        isPaused = !isPaused;
+        updatePauseBtn();
+        geoBot.say(isPaused ? "Temporizador pausado." : "Temporizador reanudado.", 2200);
+    }
+
+    function updatePauseBtn() {
+        document.getElementById('btn-pause').innerHTML = isPaused
+            ? '<i class="fas fa-play text-emerald-400"></i> <span>Reanudar</span>'
+            : '<i class="fas fa-pause"></i> <span>Pausar</span>';
+    }
+
+    function prevQuestion() {
+        if (currentQ <= 0) return;
+        SoundEngine.playClick();
+        clearInterval(timerInterval);
+        currentQ--;
+        loadQuestion();
+    }
+
+    function nextQuestion() {
+        SoundEngine.playClick();
+        clearInterval(timerInterval);
+        currentQ++;
+        if (currentQ < QUIZ_DATA.length) loadQuestion();
+        else showLockScreen();
+    }
+
+    function showLockScreen() {
+        const qs = document.getElementById('screen-quiz');
+        qs.classList.remove('active');
+        setTimeout(() => {
+            qs.style.display = 'none';
+            const rs = document.getElementById('screen-results');
+            rs.style.display = 'flex';
+            void rs.offsetWidth;
+            rs.classList.add('active');
+            document.getElementById('key-password').focus();
+            geoBot.say("Acceso restringido. Solo el docente puede desbloquear las claves.", 5000);
+        }, 380);
+    }
+
+    function checkPassword() {
+        const input = document.getElementById('key-password');
+        const err = document.getElementById('pass-error');
+        const box = document.getElementById('password-box');
+
+        if (input.value.trim() === TEACHER_KEY) {
+            err.classList.add('hidden');
+            revealKeys();
+        } else {
+            SoundEngine.playError();
+            err.classList.remove('hidden');
+            box.classList.remove('animate-shake');
+            void box.offsetWidth;
+            box.classList.add('animate-shake');
+            input.value = '';
+            input.focus();
+        }
+    }
+
+    document.getElementById('key-password').addEventListener('keydown', e => {
+        if (e.key === 'Enter') checkPassword();
+    });
+
+    function revealKeys() {
+        SoundEngine.playFanfare();
+        confetti({ particleCount: 95, spread: 75, origin: { y: 0.6 }, colors: ['#FFAE00', '#00FF88', '#00F0FF'] });
+
+        document.getElementById('lock-view').classList.add('hidden');
+        const kv = document.getElementById('keys-view');
+        kv.classList.remove('hidden');
+        kv.classList.add('flex');
+
+        const letters = ['A', 'B', 'C', 'D'];
+        const grid = document.getElementById('keys-grid');
+        grid.innerHTML = '';
+
+        QUIZ_DATA.forEach((q, idx) => {
+            const keyLetter = letters[q.correctIndex];
+            const card = document.createElement('div');
+            card.className = 'bg-slate-900/90 border border-amber-500/40 rounded-2xl p-3.5 flex items-start gap-3.5';
+            card.innerHTML = `
+                <div class="w-11 h-11 rounded-full bg-emerald-400 text-slate-950 font-sci font-black text-xl flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(0,255,136,0.55)]">
+                    ${keyLetter}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-sci text-xs font-bold text-amber-300">P${idx + 1} · ${q.topic}</span>
+                        <span class="text-[11px] font-sci text-cyan-300 bg-slate-800 px-2 py-0.5 rounded-md">Video ${q.timeRef}</span>
+                    </div>
+                    <div class="text-xs text-gray-200 mt-1 font-semibold leading-snug">${q.note}</div>
+                </div>`;
+            grid.appendChild(card);
+        });
+
+        geoBot.say("¡Claves oficiales desbloqueadas! Revisen sus fichas ópticas.", 5000);
+    }
+</script>
+</body>
+</html>
